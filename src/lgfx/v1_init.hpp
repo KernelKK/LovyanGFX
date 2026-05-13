@@ -14,6 +14,8 @@ Contributors:
  [ciniml](https://github.com/ciniml)
  [mongonta0716](https://github.com/mongonta0716)
  [tobozo](https://github.com/tobozo)
+ [erazor83](https://github.com/erazor83)
+ 
 /----------------------------------------------------------------------------*/
 #pragma once
 
@@ -32,6 +34,7 @@ Contributors:
 #include "v1/panel/Panel_ILI9163.hpp"
 #include "v1/panel/Panel_ILI9225.hpp"
 #include "v1/panel/Panel_ILI9341.hpp"
+#include "v1/panel/Panel_ILI9806.hpp"
 #include "v1/panel/Panel_ILI9342.hpp"
 #include "v1/panel/Panel_ILI948x.hpp"
 #include "v1/panel/Panel_NT35510.hpp"
@@ -46,9 +49,20 @@ Contributors:
 #include "v1/panel/Panel_SSD1963.hpp"
 #include "v1/panel/Panel_ST7735.hpp"
 #include "v1/panel/Panel_ST7789.hpp"
+#include "v1/panel/Panel_ST7789P3.hpp"
 #include "v1/panel/Panel_ST7796.hpp"
+#include "v1/panel/Panel_ST77961.hpp"
+#include "v1/panel/Panel_SharpLCD.hpp"
+
+// AMOLED
+#include "v1/panel/Panel_SH8601Z.hpp"
+#include "v1/panel/Panel_NV3041A.hpp"
+#include "v1/panel/Panel_RM690B0.hpp"
+#include "v1/panel/Panel_RM67162.hpp"
+#include "v1/panel/Panel_CO5300.hpp"
 
 // EPD
+#include "v1/panel/Panel_GDEW0154D67.hpp"
 #include "v1/panel/Panel_GDEW0154M09.hpp"
 #include "v1/panel/Panel_IT8951.hpp"
 
@@ -57,7 +71,9 @@ Contributors:
 #include "v1/panel/Panel_M5UnitLCD.hpp"
 
 // TouchScreen
-#include "v1/touch/Touch_CST816S.hpp"
+#include "v1/touch/Touch_CSTxxx.hpp"
+#include "v1/touch/Touch_CHSC6x.hpp"
+
 #include "v1/touch/Touch_FT5x06.hpp"
 #include "v1/touch/Touch_GSLx680.hpp"
 #include "v1/touch/Touch_GT911.hpp"
@@ -65,4 +81,4 @@ Contributors:
 #include "v1/touch/Touch_STMPE610.hpp"
 #include "v1/touch/Touch_TT21xxx.hpp"
 #include "v1/touch/Touch_XPT2046.hpp"
-
+#include "v1/touch/Touch_RA8875.hpp"

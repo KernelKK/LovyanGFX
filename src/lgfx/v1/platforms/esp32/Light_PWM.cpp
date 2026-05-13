@@ -22,7 +22,11 @@ Contributors:
 
 #if defined ( ARDUINO )
  #include <esp32-hal-ledc.h>
+ #if __has_include(<esp_arduino_version.h>)
+  #include <esp_arduino_version.h>
+ #endif
 #else
+ #include <driver/gpio.h>
  #include <driver/ledc.h>
 #endif
 
@@ -40,10 +44,23 @@ namespace lgfx
 
 #if defined ( ARDUINO )
 
+#if defined ESP_ARDUINO_VERSION
+  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+    #define LEDC_USE_IDF_V5 // esp32-arduino core 3.x.x uses the new ledC syntax
+  #endif
+  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(6, 0, 0)
+    #define LEDC_USE_IDF_V6 // esp32-arduino core 6.x.x
+  #endif
+#endif
+
+#if defined LEDC_USE_IDF_V5
+    ledcAttach(_cfg.pin_bl, _cfg.freq, PWM_BITS);
+    setBrightness(brightness);
+#else
     ledcSetup(_cfg.pwm_channel, _cfg.freq, PWM_BITS);
     ledcAttachPin(_cfg.pin_bl, _cfg.pwm_channel);
     setBrightness(brightness);
-
+#endif
 #else
 
     static ledc_channel_config_t ledc_channel;
@@ -55,7 +72,9 @@ namespace lgfx
      ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
 #endif
      ledc_channel.channel    = (ledc_channel_t)_cfg.pwm_channel;
+#if !defined LEDC_USE_IDF_V6  // ledc_channel_config_t.intr_type is deprecated, no need to explicitly configure interrupt, handled in the driver
      ledc_channel.intr_type  = LEDC_INTR_DISABLE;
+#endif
      ledc_channel.timer_sel  = (ledc_timer_t)((_cfg.pwm_channel >> 1) & 3);
      ledc_channel.duty       = _cfg.invert ? (1 << PWM_BITS) : 0;
      ledc_channel.hpoint     = 0;
@@ -96,7 +115,11 @@ namespace lgfx
     if (_cfg.invert) duty = (1 << PWM_BITS) - duty;
 
 #if defined ( ARDUINO )
+#if defined LEDC_USE_IDF_V5
+      ledcWrite(_cfg.pin_bl, duty);
+#else
       ledcWrite(_cfg.pwm_channel, duty);
+#endif
 #elif SOC_LEDC_SUPPORT_HS_MODE
       ledc_set_duty(LEDC_HIGH_SPEED_MODE, (ledc_channel_t)_cfg.pwm_channel, duty);
       ledc_update_duty(LEDC_HIGH_SPEED_MODE, (ledc_channel_t)_cfg.pwm_channel);

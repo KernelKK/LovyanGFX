@@ -31,10 +31,22 @@ Contributors:
 #include <hal/gpio_hal.h>
 #include <hal/lcd_ll.h>
 #include <hal/lcd_hal.h>
-#include <soc/lcd_periph.h>
+#if __has_include(<soc/lcd_periph.h>)
+ #include <soc/lcd_periph.h>
+ #define LGFX_LCD_RGB_SIG(idx) (&lcd_periph_rgb_signals.panels[(idx)])
+ #define LGFX_LCD_I80_SIG(idx) (&lcd_periph_signals.panels[(idx)])
+#elif __has_include(<hal/lcd_periph.h>)
+ #include <hal/lcd_periph.h>
+ #define LGFX_LCD_RGB_SIG(idx) (&soc_lcd_rgb_signals[(idx)])
+ #define LGFX_LCD_I80_SIG(idx) (&soc_lcd_i80_signals[(idx)])
+#endif
 #include <soc/lcd_cam_reg.h>
 #include <soc/lcd_cam_struct.h>
-#include <soc/gdma_channel.h>
+#if __has_include(<soc/gdma_channel.h>)
+ #include <soc/gdma_channel.h>
+#elif __has_include(<hal/gdma_channel.h>)
+ #include <hal/gdma_channel.h>
+#endif
 #include <soc/gdma_reg.h>
 #include <soc/gdma_struct.h>
 
@@ -42,6 +54,12 @@ Contributors:
  #include <esp_private/periph_ctrl.h>
 #else
  #include <driver/periph_ctrl.h>
+#endif
+
+#if defined ( ESP_IDF_VERSION_VAL )
+ #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  #define LGFX_HAL_FUNC_SEL
+ #endif
 #endif
 
 namespace lgfx
@@ -95,7 +113,14 @@ namespace lgfx
 
   static void _gpio_pin_sig(uint32_t pin, uint32_t sig)
   {
-    gpio_hal_iomux_func_sel(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
+    #if defined LGFX_HAL_FUNC_SEL
+      gpio_hal_context_t gpio_hal = {
+          .dev = GPIO_HAL_GET_HW(GPIO_PORT_0)
+      };
+      gpio_hal_func_sel(&gpio_hal, pin, PIN_FUNC_GPIO);
+    #else
+      gpio_hal_iomux_func_sel(GPIO_PIN_MUX_REG[pin], PIN_FUNC_GPIO);
+    #endif
     gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT);
     esp_rom_gpio_connect_out_signal(pin, sig, false, false);
   }
@@ -126,7 +151,7 @@ namespace lgfx
     _panel_config.disp_gpio_num = GPIO_NUM_NC;
 
     for (int i = 0; i < 16; ++ i) {
-      _panel_config.data_gpio_nums[i] = _cfg.pin_data[i];
+      _panel_config.data_gpio_nums[i] = (gpio_num_t)_cfg.pin_data[i];
     }
     _panel_config.flags.fb_in_psram = 1;             // allocate frame buffer in PSRAM
 
@@ -136,12 +161,12 @@ namespace lgfx
     esp_lcd_i80_bus_config_t bus_config;
     memset(&bus_config, 0, sizeof(esp_lcd_i80_bus_config_t));
     // bus_config.dc_gpio_num = GPIO_NUM_NC;
-    bus_config.dc_gpio_num = _cfg.pin_vsync;
-    bus_config.wr_gpio_num = _cfg.pin_pclk;
+    bus_config.dc_gpio_num = (gpio_num_t)_cfg.pin_vsync;
+    bus_config.wr_gpio_num = (gpio_num_t)_cfg.pin_pclk;
     bus_config.clk_src = lcd_clock_source_t::LCD_CLK_SRC_PLL160M;
     for (int i = 0; i < 16; ++i)
     {
-      bus_config.data_gpio_nums[i^8] = _cfg.pin_data[i];
+      bus_config.data_gpio_nums[i^8] = (gpio_num_t)_cfg.pin_data[i];
     }
     bus_config.bus_width = 16;
     bus_config.max_transfer_bytes = 4092;
@@ -156,14 +181,18 @@ namespace lgfx
       static constexpr const uint8_t rgb332sig_tbl[] = { 1, 0, 1, 0, 1, 2, 3, 4, 2, 3, 4, 5, 6, 5, 6, 7 };
       static constexpr const uint8_t rgb565sig_tbl[] = { 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7 };
       auto tbl = (pixel_bytes == 2) ? rgb565sig_tbl : rgb332sig_tbl;
-      auto sigs = lcd_periph_signals.panels[_cfg.port];
+#if SOC_LCDCAM_RGB_LCD_SUPPORTED
+  auto sigs = LGFX_LCD_RGB_SIG(_cfg.port);
+#else
+  auto sigs = LGFX_LCD_I80_SIG(_cfg.port);
+#endif
       for (size_t i = 0; i < 16; i++) {
-        _gpio_pin_sig(_cfg.pin_data[i], sigs.data_sigs[tbl[i]]);
+        _gpio_pin_sig(_cfg.pin_data[i], sigs->data_sigs[tbl[i]]);
       }
-      _gpio_pin_sig(_cfg.pin_henable, sigs.de_sig);
-      _gpio_pin_sig(_cfg.pin_hsync, sigs.hsync_sig);
-      _gpio_pin_sig(_cfg.pin_vsync, sigs.vsync_sig);
-      _gpio_pin_sig(_cfg.pin_pclk, sigs.pclk_sig);
+      _gpio_pin_sig(_cfg.pin_henable, sigs->de_sig);
+      _gpio_pin_sig(_cfg.pin_hsync, sigs->hsync_sig);
+      _gpio_pin_sig(_cfg.pin_vsync, sigs->vsync_sig);
+      _gpio_pin_sig(_cfg.pin_pclk, sigs->pclk_sig);
     }
 
     // periph_module_enable(lcd_periph_signals.panels[_cfg.port].module);
@@ -304,7 +333,14 @@ namespace lgfx
     dev->lc_dma_int_ena.val = 1;
 
     int isr_flags = ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_SHARED;
-    esp_intr_alloc_intrstatus(lcd_periph_signals.panels[_cfg.port].irq_id, isr_flags,
+
+#if SOC_LCDCAM_RGB_LCD_SUPPORTED
+  auto sigs = LGFX_LCD_RGB_SIG(_cfg.port);
+#else
+  auto sigs = LGFX_LCD_I80_SIG(_cfg.port);
+#endif
+
+    esp_intr_alloc_intrstatus(sigs->irq_id, isr_flags,
                                    (uint32_t)&dev->lc_dma_int_st,
                                     LCD_LL_EVENT_VSYNC_END, lcd_default_isr_handler, this, &_intr_handle);
     esp_intr_enable(_intr_handle);
@@ -323,6 +359,18 @@ namespace lgfx
 
   void Bus_RGB::release(void)
   {
+    if (_intr_handle) {
+      esp_intr_free(_intr_handle);
+    }
+    if (_i80_bus)
+    {
+      esp_lcd_del_i80_bus(_i80_bus);
+    }
+    if (_dmadesc)
+    {
+      heap_caps_free(_dmadesc);
+      _dmadesc = nullptr;
+    }
   }
 
 //----------------------------------------------------------------------------
